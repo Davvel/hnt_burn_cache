@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Offline smoke tests for v1.2.0 helpers. No Dune credits are used."""
+"""Offline smoke tests for v1.2.1 helpers. No Dune credits are used."""
 import importlib.util
 import os
 from datetime import date
@@ -7,9 +7,9 @@ from pathlib import Path
 
 os.environ.setdefault("MAX_ROWS", "1000")
 os.environ.setdefault("HISTORY_DAYS", "30")
-os.environ.setdefault("CACHE_VERSION", "1.2.0")
+os.environ.setdefault("CACHE_VERSION", "1.2.1")
 os.environ.setdefault("DUNE_SOURCE_QUERY_ID", "3342070")
-os.environ.setdefault("DUNE_PERFORMANCE", "small")
+os.environ.setdefault("DUNE_PERFORMANCE", "medium")
 
 p = Path(__file__).parent / "fetch_burn.py"
 spec = importlib.util.spec_from_file_location("fetch_burn", p)
@@ -41,4 +41,4 @@ assert skipped == 1
 assert date_col == "day"
 assert value_col == "hnt_burned"
 
-print("v1.2.0 offline smoke tests passed.")
+print("v1.2.1 offline smoke tests passed.")

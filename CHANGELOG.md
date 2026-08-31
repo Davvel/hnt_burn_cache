@@ -1,5 +1,12 @@
 # Changelog
 
+## v1.2.1 - 2026-08-31
+
+- Changed API execution engine from `small` to `medium`.
+- Fixes Dune HTTP 400: `This performance tier is not available with your subscription` when Small is requested programmatically.
+- Keeps the same 30-row wrapper, `MAX_ROWS=1000`, detailed error reporting, and versioned browser-cache files.
+- Invalid engine configuration now falls back to `medium` rather than `small`.
+
 ## v1.2.0 - 2026-08-31
 
 - Replaced the expired-cache-only approach with a fresh Dune execution on every scheduled/manual refresh.

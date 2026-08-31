@@ -1,8 +1,8 @@
-HNT Burn Cache package version: 1.2.0
+HNT Burn Cache package version: 1.2.1
 Schema version: 3
 History window: 30 days
 Dune source query: 3342070
 Dune mode: fresh SQL execution using query view
 Dune wrapper output limit: 30 newest daily rows
 Dune result-read hard row limit: 1000
-Default Dune engine: small
+Default Dune engine: medium

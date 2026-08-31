@@ -1,8 +1,8 @@
-# HNT Daily Burn Public Cache — v1.2.0
+# HNT Daily Burn Public Cache — v1.2.1
 
 This repository publishes a tiny public JSON feed containing the latest **30 days of daily HNT burned** for the HNT Monitor app.
 
-## Why v1.2.0 exists
+## Why v1.2.1 exists
 
 v1.1.0 correctly tried to read only recent rows, but Dune returned:
 
@@ -10,7 +10,9 @@ v1.1.0 correctly tried to read only recent rows, but Dune returned:
 query execution result already expired
 ```
 
-v1.2.0 no longer depends on somebody else's still-live cached execution. Each GitHub Action run starts a **fresh Dune execution**, waits for it to finish, reads the small result, and then publishes it to GitHub Pages.
+v1.2.1 keeps the v1.2.0 fresh-execution design and fixes the engine selection. v1.2.0 no longer depends on somebody else's still-live cached execution. Each GitHub Action run starts a **fresh Dune execution**, waits for it to finish, reads the small result, and then publishes it to GitHub Pages.
+
+The previous v1.2.0 build requested the `small` engine through the API. Dune rejected that with `This performance tier is not available with your subscription`. Dune documents Medium as the default engine for programmatic/API executions, so v1.2.1 uses `medium`.
 
 ## What the Dune execution does
 
@@ -71,19 +73,19 @@ Workflow defaults:
 DUNE_SOURCE_QUERY_ID=3342070
 HISTORY_DAYS=30
 MAX_ROWS=1000
-DUNE_PERFORMANCE=small
+DUNE_PERFORMANCE=medium
 MAX_WAIT_SECONDS=600
 ```
 
 ## Published files
 
-Versioned v1.2.0 endpoints:
+Versioned v1.2.1 endpoints:
 
 ```text
-/hnt-burn-v1.2.0.json
-/latest-v1.2.0.json
-/latest-complete-v1.2.0.json
-/status-v1.2.0.json
+/hnt-burn-v1.2.1.json
+/latest-v1.2.1.json
+/latest-complete-v1.2.1.json
+/status-v1.2.1.json
 /version.json
 ```
 
@@ -106,16 +108,16 @@ The versioned URLs plus `?cb=TIMESTAMP` browser cache-busting prevent an old dep
 4. Do **not** delete the hidden `.git` folder in your existing repository.
 5. The `.github` folder from this package **must** replace/update the existing `.github` folder; it contains the workflow.
 6. Open GitHub Desktop.
-7. Commit the changes, for example: `HNT Burn Cache v1.2.0 - fresh 30 day execution`.
+7. Commit the changes, for example: `HNT Burn Cache v1.2.1 - use Medium API engine`.
 8. Click **Push origin**.
-9. On github.com, verify `VERSION.txt` says `1.2.0`.
+9. On github.com, verify `VERSION.txt` says `1.2.1`.
 10. Go to **Actions → Refresh HNT burn cache → Run workflow**.
 
 Your `DUNE_API_KEY` secret is stored by GitHub and is not inside this ZIP, so replacing repository files does not remove it.
 
 ## What to look for in GitHub Actions
 
-The v1.2.0 step is named:
+The v1.2.1 step is named:
 
 ```text
 Execute fresh HNT burn query and fetch last 30 days
@@ -124,7 +126,7 @@ Execute fresh HNT burn query and fetch last 30 days
 During execution you should see lines similar to:
 
 ```text
-Submitting fresh Dune execution: source query=3342070, latest rows=30, engine=small.
+Submitting fresh Dune execution: source query=3342070, latest rows=30, engine=medium.
 Dune execution state=QUERY_STATE_PENDING; credits=pending
 Dune execution state=QUERY_STATE_EXECUTING; credits=pending
 Dune execution state=QUERY_STATE_COMPLETED; credits=...

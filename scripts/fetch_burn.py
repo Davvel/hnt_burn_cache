@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-HNT Daily Burn Public Cache v1.2.0
+HNT Daily Burn Public Cache v1.2.1
 
 Execute a fresh, deliberately small Dune SQL wrapper around public query 3342070,
 wait for it to finish, retrieve the result, and publish app-friendly JSON files.
@@ -17,7 +17,7 @@ Dune Query View note:
 The source public query is invoked as query_<id>. Dune executes that upstream query
 when the wrapper runs. The wrapper limits the produced result to the newest 30 rows;
 actual execution compute is still determined by Dune and the source query. Keep your
-Dune account's global per-query credit cap enabled as the execution safety guardrail.
+Dune account's query-cost/spend guardrails enabled as the execution safety guardrail.
 """
 
 import json
@@ -36,13 +36,13 @@ OUT_DIR = Path(os.environ.get("OUT_DIR", "site"))
 HISTORY_DAYS = max(1, int(os.environ.get("HISTORY_DAYS", "30")))
 MAX_ROWS = max(1, int(os.environ.get("MAX_ROWS", "1000")))
 STALE_AFTER_DAYS = max(0, int(os.environ.get("STALE_AFTER_DAYS", "2")))
-CACHE_VERSION = os.environ.get("CACHE_VERSION", "1.2.0").strip() or "1.2.0"
-DUNE_PERFORMANCE = os.environ.get("DUNE_PERFORMANCE", "small").strip().lower()
+CACHE_VERSION = os.environ.get("CACHE_VERSION", "1.2.1").strip() or "1.2.1"
+DUNE_PERFORMANCE = os.environ.get("DUNE_PERFORMANCE", "medium").strip().lower()
 POLL_SECONDS = max(1, int(os.environ.get("POLL_SECONDS", "5")))
 MAX_WAIT_SECONDS = max(30, int(os.environ.get("MAX_WAIT_SECONDS", "600")))
 
 if DUNE_PERFORMANCE not in {"small", "medium", "large"}:
-    DUNE_PERFORMANCE = "small"
+    DUNE_PERFORMANCE = "medium"
 
 DATE_CANDIDATES = [
     "date", "day", "block_date", "burn_date", "dt",

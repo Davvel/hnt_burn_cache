@@ -39,9 +39,9 @@ jobs:
           HISTORY_DAYS: "30"
           MAX_ROWS: "1000"
           STALE_AFTER_DAYS: "2"
-          CACHE_VERSION: "1.2.0"
-          # Small is the lowest-cost engine tier and is sufficient if the source query completes on it.
-          DUNE_PERFORMANCE: "small"
+          CACHE_VERSION: "1.2.1"
+          # Dune API programmatic executions use Medium (Small is manual-only on this account/plan).
+          DUNE_PERFORMANCE: "medium"
           POLL_SECONDS: "5"
           MAX_WAIT_SECONDS: "600"
         run: python scripts/fetch_burn.py
