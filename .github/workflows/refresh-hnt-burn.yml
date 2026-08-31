@@ -32,13 +32,14 @@ jobs:
         with:
           python-version: "3.13"
 
-      - name: Fetch latest cached Dune result
+      - name: Fetch last 30 days from latest cached Dune result
         env:
           DUNE_API_KEY: ${{ secrets.DUNE_API_KEY }}
-          # Change this if you later choose a different public HNT burn query.
           DUNE_QUERY_ID: "3342070"
-          MAX_ROWS: "5000"
+          HISTORY_DAYS: "30"
+          MAX_ROWS: "1000"
           STALE_AFTER_DAYS: "2"
+          CACHE_VERSION: "1.1.0"
         run: python scripts/fetch_burn.py
 
       - name: Configure GitHub Pages

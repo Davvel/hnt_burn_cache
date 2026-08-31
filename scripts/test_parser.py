@@ -1,7 +1,13 @@
 #!/usr/bin/env python3
-"""Small offline smoke test for parser helpers."""
+"""Offline smoke tests for parser and recent-result request helpers."""
 import importlib.util
+import os
 from pathlib import Path
+
+# Make tests deterministic for configuration-derived helpers.
+os.environ.setdefault("MAX_ROWS", "1000")
+os.environ.setdefault("HISTORY_DAYS", "30")
+os.environ.setdefault("CACHE_VERSION", "1.1.0")
 
 p = Path(__file__).parent / "fetch_burn.py"
 spec = importlib.util.spec_from_file_location("fetch_burn", p)
@@ -18,4 +24,11 @@ assert d == "day", (d, cols)
 assert v == "hnt_burned", (v, cols)
 assert m.normalize_date(rows[0][d]) == "2026-08-29"
 assert m.normalize_number(rows[1][v]) == 200.25
-print("Offline parser smoke test passed.")
+
+params = m.build_recent_params("day", "hnt_burned", "2026-08-02")
+assert params["limit"] == 1000
+assert params["filters"] == "day >= '2026-08-02'"
+assert params["columns"] == "day,hnt_burned"
+assert params["sort_by"] == "day asc"
+
+print("Offline parser/request smoke test passed.")

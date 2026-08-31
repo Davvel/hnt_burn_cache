@@ -1,0 +1,4 @@
+HNT Burn Cache package version: 1.1.0
+Schema version: 2
+History window: 30 days
+Dune data-request hard row limit: 1000

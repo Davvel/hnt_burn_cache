@@ -3,27 +3,31 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>HNT Daily Burn Cache</title>
+  <meta name="hnt-cache-version" content="1.1.0">
+  <title>HNT Daily Burn Cache v1.1.0</title>
   <style>
     body { font-family: system-ui, sans-serif; max-width: 760px; margin: 40px auto; padding: 0 18px; line-height: 1.45; }
     code { background: #f2f2f2; padding: 2px 5px; border-radius: 4px; }
-    .ok { font-weight: 700; }
-    .stale { font-weight: 700; }
+    .version { font-size: .9rem; opacity: .7; }
     table { border-collapse: collapse; width: 100%; margin-top: 18px; }
     td, th { border-bottom: 1px solid #ddd; padding: 8px; text-align: left; }
   </style>
 </head>
 <body>
   <h1>HNT Daily Burn Cache</h1>
+  <p class="version">Cache package v1.1.0 · last 30 days only</p>
   <p id="summary">Loading…</p>
 
   <p>Public app endpoints:</p>
   <ul>
-    <li><a href="latest-complete.json"><code>latest-complete.json</code></a> — latest completed UTC day</li>
-    <li><a href="latest.json"><code>latest.json</code></a> — latest row returned by Dune</li>
-    <li><a href="hnt-burn.json"><code>hnt-burn.json</code></a> — historical daily series</li>
-    <li><a href="status.json"><code>status.json</code></a> — freshness/health</li>
+    <li><a href="latest-complete-v1.1.0.json"><code>latest-complete-v1.1.0.json</code></a> — latest completed UTC day</li>
+    <li><a href="latest-v1.1.0.json"><code>latest-v1.1.0.json</code></a> — latest row returned by Dune</li>
+    <li><a href="hnt-burn-v1.1.0.json"><code>hnt-burn-v1.1.0.json</code></a> — last 30 days</li>
+    <li><a href="status-v1.1.0.json"><code>status-v1.1.0.json</code></a> — freshness/health</li>
+    <li><a href="version.json"><code>version.json</code></a> — deployed cache package version</li>
   </ul>
+
+  <p>Stable non-versioned aliases are also published for existing app clients.</p>
 
   <h2>Recent days</h2>
   <table>
@@ -32,16 +36,20 @@
   </table>
 
 <script>
+const CACHE_VERSION = '1.1.0';
+
 (async () => {
   try {
-    const r = await fetch('./hnt-burn.json', {cache: 'no-store'});
+    // Versioned filename + a changing query string prevents stale browser data.
+    const r = await fetch(`./hnt-burn-v${CACHE_VERSION}.json?cb=${Date.now()}`, {cache: 'no-store'});
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
     const j = await r.json();
 
     document.getElementById('summary').textContent =
-      `Status: ${j.status}. Latest available date: ${j.latest_available_date}. ` +
-      `Generated: ${j.generated_at_utc}. Query: ${j.query_id}.`;
+      `Status: ${j.status}. Rows: ${j.row_count}. Latest available date: ${j.latest_available_date}. ` +
+      `Generated: ${j.generated_at_utc}. Query: ${j.query_id}. Cache: ${j.cache_version}.`;
 
-    const recent = [...j.data].slice(-14).reverse();
+    const recent = [...j.data].slice().reverse();
     const tbody = document.getElementById('rows');
     for (const row of recent) {
       const tr = document.createElement('tr');
@@ -53,7 +61,8 @@
       tbody.appendChild(tr);
     }
   } catch (e) {
-    document.getElementById('summary').textContent = 'Cache not generated yet. Run the GitHub Action once.';
+    document.getElementById('summary').textContent =
+      'Cache not generated yet, or the previous run failed. Run the GitHub Action and inspect its log.';
   }
 })();
 </script>
