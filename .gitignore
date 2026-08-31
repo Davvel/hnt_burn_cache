@@ -1,0 +1,10 @@
+# Local secrets
+.env
+*.key
+
+# Python
+__pycache__/
+*.pyc
+
+# Debug/error artifact may contain Dune response structure
+site/last-error-response.json

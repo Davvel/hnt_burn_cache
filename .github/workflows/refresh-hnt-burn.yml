@@ -1,0 +1,54 @@
+name: Refresh HNT burn cache
+
+on:
+  workflow_dispatch:
+  schedule:
+    # 03:17 Malta time. Avoiding exactly :00 reduces the chance of GitHub schedule congestion.
+    - cron: "17 3 * * *"
+      timezone: "Europe/Malta"
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "hnt-burn-pages"
+  cancel-in-progress: false
+
+jobs:
+  refresh-and-publish:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+
+      - name: Fetch latest cached Dune result
+        env:
+          DUNE_API_KEY: ${{ secrets.DUNE_API_KEY }}
+          # Change this if you later choose a different public HNT burn query.
+          DUNE_QUERY_ID: "3342070"
+          MAX_ROWS: "5000"
+          STALE_AFTER_DAYS: "2"
+        run: python scripts/fetch_burn.py
+
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload public cache
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: site
+
+      - name: Deploy public cache
+        id: deployment
+        uses: actions/deploy-pages@v4
