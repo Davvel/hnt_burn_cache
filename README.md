@@ -1,56 +1,93 @@
-# HNT Daily Burn Public Cache — v1.1.0
+# HNT Daily Burn Public Cache — v1.2.0
 
-This repository turns Dune query **3342070** (`Daily HNT Token Burned Amount`) into a tiny public JSON feed for the HNT Monitor app.
+This repository publishes a tiny public JSON feed containing the latest **30 days of daily HNT burned** for the HNT Monitor app.
 
-## What changed in v1.1.0
+## Why v1.2.0 exists
 
-The cache no longer asks Dune for thousands of historical rows and then trims them locally.
-
-Each refresh now does:
-
-1. A **1-row schema probe** to discover the public query's date and HNT-burn column names.
-2. A second Dune read using **server-side filtering for only the last 30 calendar days**.
-3. The data request has a hard `MAX_ROWS=1000` safety cap and requests only the two required columns.
-4. The published JSON is also checked locally and limited to at most 30 daily entries.
-
-Dune documents that filtering, column selection, sorting and `limit` are supported on the latest-result endpoint. This project still uses the latest cached result only; it does **not** execute the Dune SQL query.
-
-## Architecture
-
-Dune cached query result
-→ GitHub Actions (once per day)
-→ GitHub Pages
-→ public JSON
-→ HNT Monitor app
-
-The Android/PWA app never receives the Dune API key.
-
-## Dune cost controls
-
-Workflow settings:
+v1.1.0 correctly tried to read only recent rows, but Dune returned:
 
 ```text
-HISTORY_DAYS=30
+query execution result already expired
+```
+
+v1.2.0 no longer depends on somebody else's still-live cached execution. Each GitHub Action run starts a **fresh Dune execution**, waits for it to finish, reads the small result, and then publishes it to GitHub Pages.
+
+## What the Dune execution does
+
+The code executes this small DuneSQL wrapper:
+
+```sql
+SELECT *
+FROM query_3342070
+ORDER BY 1 DESC
+LIMIT 30
+```
+
+Query `3342070` is `Daily HNT Token Burned Amount`, so one result row represents one daily value. The wrapper therefore asks for the **30 newest daily rows**, not thousands of historical rows.
+
+The API result read has an additional hard ceiling:
+
+```text
 MAX_ROWS=1000
 ```
 
-The actual data request is filtered on Dune's server to the last 30 days. The 1,000-row value is only a hard ceiling; for a daily aggregate query the normal response should be around 30 rows.
+The script then performs a second local date check and refuses to publish dates outside the current 30-day UTC calendar window.
 
-Keep your Dune account's **per-read credit limit** at the value you selected (for example 25 credits). The script does not bypass that limit.
+### Important Dune cost note
+
+Dune Query Views execute their upstream query when called. Therefore, although this wrapper returns only the latest 30 rows, the compute cost of the underlying public query is still determined by Dune and the source SQL. Keep the **global per-query cost cap** enabled in your Dune account. The script never bypasses Dune's credit guardrails.
+
+After each successful run, `execution_cost_credits` is written into the public status JSON so you can see what the execution actually cost.
+
+## Architecture
+
+```text
+Dune public query 3342070
+        ↓ fresh execution
+Dune wrapper: newest 30 rows only
+        ↓
+GitHub Actions (daily)
+        ↓
+GitHub Pages JSON cache
+        ↓
+HNT Monitor app / all users
+```
+
+Your users never call Dune directly and never receive your Dune API key.
+
+## Dune configuration
+
+Your existing GitHub repository secret remains:
+
+```text
+DUNE_API_KEY
+```
+
+The key needs only **Read** scope for Dune's Execute SQL endpoint.
+
+Workflow defaults:
+
+```text
+DUNE_SOURCE_QUERY_ID=3342070
+HISTORY_DAYS=30
+MAX_ROWS=1000
+DUNE_PERFORMANCE=small
+MAX_WAIT_SECONDS=600
+```
 
 ## Published files
 
-Versioned endpoints for this package:
+Versioned v1.2.0 endpoints:
 
 ```text
-/hnt-burn-v1.1.0.json
-/latest-v1.1.0.json
-/latest-complete-v1.1.0.json
-/status-v1.1.0.json
+/hnt-burn-v1.2.0.json
+/latest-v1.2.0.json
+/latest-complete-v1.2.0.json
+/status-v1.2.0.json
 /version.json
 ```
 
-Stable aliases are also generated for compatibility:
+Stable compatibility aliases are also produced:
 
 ```text
 /hnt-burn.json
@@ -59,64 +96,43 @@ Stable aliases are also generated for compatibility:
 /status.json
 ```
 
-The status page itself reads the **versioned** history file and adds a changing `?cb=` query parameter, so browsers should not keep showing an old deployment.
+The versioned URLs plus `?cb=TIMESTAMP` browser cache-busting prevent an old deployment from being confused with the current build.
 
 ## Replace your existing GitHub repository files
 
 1. Unzip this package.
-2. Copy **all contents** into your local `hnt_burn_cache` repository, replacing existing files when prompted.
-3. Do **not** delete the repository's `.git` folder. It is GitHub Desktop's local repository metadata.
-4. The `.github` folder in this package is different from `.git` and must remain; it contains the GitHub Actions workflow.
-5. Commit the changes in GitHub Desktop and push to `main`.
-6. Your existing GitHub repository secret named `DUNE_API_KEY` remains in GitHub; it is not stored in this ZIP and does not need to be recreated.
-7. Go to GitHub → **Actions → Refresh HNT burn cache → Run workflow**.
+2. Copy **everything inside** it into your existing local `hnt_burn_cache` repository.
+3. Choose **Replace** when Windows asks about existing files.
+4. Do **not** delete the hidden `.git` folder in your existing repository.
+5. The `.github` folder from this package **must** replace/update the existing `.github` folder; it contains the workflow.
+6. Open GitHub Desktop.
+7. Commit the changes, for example: `HNT Burn Cache v1.2.0 - fresh 30 day execution`.
+8. Click **Push origin**.
+9. On github.com, verify `VERSION.txt` says `1.2.0`.
+10. Go to **Actions → Refresh HNT burn cache → Run workflow**.
 
-## If the workflow fails again
+Your `DUNE_API_KEY` secret is stored by GitHub and is not inside this ZIP, so replacing repository files does not remove it.
 
-The updated script now prints Dune's response body for HTTP errors. For example, instead of only:
+## What to look for in GitHub Actions
 
-```text
-HTTP Error 412: Precondition Failed
-```
-
-GitHub Actions should also show Dune's explanation, which will make the next diagnosis much easier.
-
-## GitHub Pages
-
-Repository Settings → Pages → Build and deployment → **Source: GitHub Actions**.
-
-The workflow runs every day at **03:17 Europe/Malta time** and can also be run manually.
-
-## Public cache fields
-
-`hnt-burn-v1.1.0.json` includes:
-
-- `cache_version: "1.1.0"`
-- `schema_version: 2`
-- `history_days: 30`
-- `requested_from_date`
-- `max_rows_per_data_request: 1000`
-- `row_count`
-- `latest_available_date`
-- `latest_complete_date`
-- `data` — at most 30 daily rows
-
-## Browser/app cache busting
-
-For new app code, prefer the versioned URL:
+The v1.2.0 step is named:
 
 ```text
-.../hnt-burn-v1.1.0.json
+Execute fresh HNT burn query and fetch last 30 days
 ```
 
-If you want to guarantee a fresh HTTP read in a browser or mobile client, append a changing query parameter when refreshing:
+During execution you should see lines similar to:
 
 ```text
-.../hnt-burn-v1.1.0.json?cb=TIMESTAMP
+Submitting fresh Dune execution: source query=3342070, latest rows=30, engine=small.
+Dune execution state=QUERY_STATE_PENDING; credits=pending
+Dune execution state=QUERY_STATE_EXECUTING; credits=pending
+Dune execution state=QUERY_STATE_COMPLETED; credits=...
+Published ... daily rows...
 ```
 
-The web status page already does this automatically.
+If Dune rejects or fails the query, the workflow prints Dune's detailed response rather than only a generic HTTP code.
 
 ## Security
 
-Never put `DUNE_API_KEY` in source code, JSON files, the APK/PWA, screenshots, or Git commits. Keep it only in GitHub Actions → Repository secrets.
+Never place `DUNE_API_KEY` in source code, JSON, the APK/PWA, screenshots, or commits. Keep it only in **GitHub repository secrets**.

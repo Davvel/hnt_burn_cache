@@ -1,13 +1,21 @@
 # Changelog
 
+## v1.2.0 - 2026-08-31
+
+- Replaced the expired-cache-only approach with a fresh Dune execution on every scheduled/manual refresh.
+- Uses Dune `POST /api/v1/sql/execute`, which works with a `Read` API key.
+- Executes a small wrapper around public query `3342070` and asks for only the newest 30 daily rows (`ORDER BY 1 DESC LIMIT 30`).
+- Polls Dune's execution-status endpoint until the query completes; status polling itself does not consume credits.
+- Fetches the completed execution using a hard `MAX_ROWS=1000` result-read ceiling.
+- Keeps a strict local calendar check so only the last 30 UTC calendar days can be published.
+- Defaults to Dune's `small` engine to favor lower credit usage.
+- Publishes Dune's actual `execution_cost_credits` in `status.json` and `hnt-burn*.json` for easy monitoring.
+- Keeps detailed Dune error responses in GitHub Actions logs.
+- Bumped published JSON schema to version 3.
+- Added v1.2.0 versioned public files while retaining stable aliases for existing clients.
+- Browser status page now uses the v1.2.0 filename plus a changing cache-buster.
+
 ## v1.1.0 - 2026-08-31
 
-- Changed Dune retrieval to fetch only the last 30 calendar days server-side.
-- Added a 1-row schema probe so the public query's date/value column names do not have to be guessed.
-- Set the Dune data-read hard cap to 1,000 rows.
-- Requests only the detected date and HNT-burn columns for the 30-day data read.
-- Improved Dune HTTP error reporting, including the response body for errors such as HTTP 412.
-- Added `cache_version` and schema version 2 to published JSON.
-- Added versioned public JSON filenames (`*-v1.1.0.json`) while retaining stable aliases.
-- Added `version.json` and `VERSION.txt`.
-- The status page uses versioned JSON plus a cache-busting query string to avoid stale browser content.
+- Tried to read only the last 30 calendar days from query `3342070`'s cached result.
+- Added detailed HTTP error reporting, which revealed that the source execution had expired.
