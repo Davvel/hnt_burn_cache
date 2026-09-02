@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <meta name="hnt-cache-version" content="1.2.1">
-  <title>HNT Daily Burn Cache v1.2.1</title>
+  <meta name="hnt-cache-version" content="1.3.0">
+  <title>HNT Daily Burn Cache v1.3.0</title>
   <style>
     body { font-family: system-ui, sans-serif; max-width: 780px; margin: 40px auto; padding: 0 18px; line-height: 1.45; }
     code { background: #f2f2f2; padding: 2px 5px; border-radius: 4px; }
@@ -16,16 +16,16 @@
 </head>
 <body>
   <h1>HNT Daily Burn Cache</h1>
-  <p class="version">Cache package v1.2.1 · fresh Dune execution · last 30 days</p>
+  <p class="version">Cache package v1.3.0 · fresh Dune execution · 30 settled days ending at T-2</p>
   <p id="summary">Loading…</p>
   <p id="cost"></p>
 
   <p>Public app endpoints:</p>
   <ul>
-    <li><a href="latest-complete-v1.2.1.json"><code>latest-complete-v1.2.1.json</code></a> — latest completed UTC day</li>
-    <li><a href="latest-v1.2.1.json"><code>latest-v1.2.1.json</code></a> — latest row</li>
-    <li><a href="hnt-burn-v1.2.1.json"><code>hnt-burn-v1.2.1.json</code></a> — last 30 days</li>
-    <li><a href="status-v1.2.1.json"><code>status-v1.2.1.json</code></a> — health + Dune execution credits</li>
+    <li><a href="latest-complete-v1.3.0.json"><code>latest-complete-v1.3.0.json</code></a> — latest settled UTC day (day before yesterday)</li>
+    <li><a href="latest-v1.3.0.json"><code>latest-v1.3.0.json</code></a> — latest published row (T-2 or older if source is stale)</li>
+    <li><a href="hnt-burn-v1.3.0.json"><code>hnt-burn-v1.3.0.json</code></a> — 30 settled days ending at T-2</li>
+    <li><a href="status-v1.3.0.json"><code>status-v1.3.0.json</code></a> — health + Dune execution credits</li>
     <li><a href="version.json"><code>version.json</code></a> — deployed package version</li>
   </ul>
 
@@ -38,7 +38,7 @@
   </table>
 
 <script>
-const CACHE_VERSION = '1.2.1';
+const CACHE_VERSION = '1.3.0';
 
 (async () => {
   try {

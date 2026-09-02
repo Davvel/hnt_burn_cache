@@ -1,5 +1,13 @@
 # Changelog
 
+## v1.3.0 - 2026-09-02
+
+- Changed the settlement boundary from yesterday (T-1) to the day before yesterday (T-2).
+- Today and yesterday are now always excluded from the published burn cache.
+- Requests 32 newest Dune daily rows so that, after dropping T and T-1, a full 30 settled days can still be published.
+- Added `expected_latest_date` and `settlement_lag_days: 2` to cache/status metadata.
+- Updated offline tests to verify that a 2 September run ends on 31 August.
+
 ## v1.2.1 - 2026-08-31
 
 - Changed API execution engine from `small` to `medium`.

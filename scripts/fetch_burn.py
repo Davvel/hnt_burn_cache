@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-HNT Daily Burn Public Cache v1.2.1
+HNT Daily Burn Public Cache v1.3.0
 
 Execute a fresh, deliberately small Dune SQL wrapper around public query 3342070,
 wait for it to finish, retrieve the result, and publish app-friendly JSON files.
@@ -36,7 +36,7 @@ OUT_DIR = Path(os.environ.get("OUT_DIR", "site"))
 HISTORY_DAYS = max(1, int(os.environ.get("HISTORY_DAYS", "30")))
 MAX_ROWS = max(1, int(os.environ.get("MAX_ROWS", "1000")))
 STALE_AFTER_DAYS = max(0, int(os.environ.get("STALE_AFTER_DAYS", "2")))
-CACHE_VERSION = os.environ.get("CACHE_VERSION", "1.2.1").strip() or "1.2.1"
+CACHE_VERSION = os.environ.get("CACHE_VERSION", "1.3.0").strip() or "1.3.0"
 DUNE_PERFORMANCE = os.environ.get("DUNE_PERFORMANCE", "medium").strip().lower()
 POLL_SECONDS = max(1, int(os.environ.get("POLL_SECONDS", "5")))
 MAX_WAIT_SECONDS = max(30, int(os.environ.get("MAX_WAIT_SECONDS", "600")))
@@ -137,15 +137,16 @@ def request_json(url: str, method="GET", payload=None, purpose="request", timeou
 
 
 def build_wrapper_sql(source_query_id: str, history_days: int) -> str:
-    """Return only the newest N rows from a daily source query.
+    """Return enough newest rows to publish N settled daily values.
 
-    Query 3342070 is a daily time series. ORDER BY 1 DESC asks for the newest
-    daily rows without hard-coding the source query's date-column name.
+    Today and yesterday are deliberately excluded from the public cache.
+    Therefore request HISTORY_DAYS + 2 source rows, then locally keep the
+    30-day window ending on the day before yesterday (T-2).
     """
     qid = "".join(ch for ch in str(source_query_id) if ch.isdigit())
     if not qid or qid != str(source_query_id):
         raise ValueError("DUNE_SOURCE_QUERY_ID must contain digits only")
-    row_limit = min(max(1, history_days), MAX_ROWS)
+    row_limit = min(max(1, history_days + 2), MAX_ROWS)
     return (
         f"SELECT *\n"
         f"FROM query_{qid}\n"
@@ -162,7 +163,7 @@ def execute_fresh_query():
     }
     print(
         f"Submitting fresh Dune execution: source query={SOURCE_QUERY_ID}, "
-        f"latest rows={min(HISTORY_DAYS, MAX_ROWS)}, engine={DUNE_PERFORMANCE}."
+        f"source rows={min(HISTORY_DAYS + 2, MAX_ROWS)} (publish through T-2), engine={DUNE_PERFORMANCE}."
     )
     raw = request_json(
         "https://api.dune.com/api/v1/sql/execute",
@@ -312,7 +313,8 @@ def process_rows(rows, today_utc=None):
         )
 
     today_utc = today_utc or datetime.now(timezone.utc).date()
-    first_day = today_utc - timedelta(days=HISTORY_DAYS - 1)
+    latest_publishable_day = today_utc - timedelta(days=2)
+    first_day = latest_publishable_day - timedelta(days=HISTORY_DAYS - 1)
 
     per_day = {}
     skipped = 0
@@ -323,16 +325,17 @@ def process_rows(rows, today_utc=None):
             skipped += 1
             continue
         parsed_date = date.fromisoformat(d)
-        # Strict local safety check: publish only the current 30-day calendar window.
-        if parsed_date < first_day or parsed_date > today_utc:
+        # Strict safety check: never publish today or yesterday. The cache is
+        # the settled 30-day window ending on the day before yesterday (T-2).
+        if parsed_date < first_day or parsed_date > latest_publishable_day:
             skipped += 1
             continue
         per_day[d] = per_day.get(d, 0.0) + v
 
     if not per_day:
         raise ValueError(
-            f"No usable rows fell inside the last {HISTORY_DAYS} calendar days "
-            f"starting {first_day.isoformat()}."
+            f"No usable rows fell inside the settled {HISTORY_DAYS}-day window "
+            f"from {first_day.isoformat()} through {latest_publishable_day.isoformat()}."
         )
 
     daily = [
@@ -365,9 +368,8 @@ def main():
     age_days = (today_utc - latest_date).days
     stale = age_days > STALE_AFTER_DAYS
 
-    cutoff = (today_utc - timedelta(days=1)).isoformat()
-    completed = [r for r in daily if r["date"] <= cutoff]
-    latest_complete = completed[-1] if completed else latest
+    expected_latest_date = (today_utc - timedelta(days=2)).isoformat()
+    latest_complete = latest
     generated = now_iso()
 
     output = {
@@ -384,7 +386,7 @@ def main():
             "provider": "Dune",
             "mode": "fresh_sql_execution_query_view",
             "source_query_id": SOURCE_QUERY_ID,
-            "wrapper_rows_requested": min(HISTORY_DAYS, MAX_ROWS),
+            "wrapper_rows_requested": min(HISTORY_DAYS + 2, MAX_ROWS),
             "wrapper_ordering": "ORDER BY first source column DESC",
             "dune_performance": DUNE_PERFORMANCE,
             "execution_id": execution_id,
@@ -400,6 +402,8 @@ def main():
         },
         "latest_available_date": latest["date"],
         "latest_complete_date": latest_complete["date"],
+        "expected_latest_date": expected_latest_date,
+        "settlement_lag_days": 2,
         "latest_age_days": age_days,
         "stale_after_days": STALE_AFTER_DAYS,
         "row_count": len(daily),
@@ -423,6 +427,8 @@ def main():
         "row_count": len(daily),
         "latest_available_date": latest["date"],
         "latest_complete_date": latest_complete["date"],
+        "expected_latest_date": expected_latest_date,
+        "settlement_lag_days": 2,
         "latest_age_days": age_days,
         "execution_id": execution_id,
         "execution_cost_credits": execution_cost,
@@ -449,6 +455,7 @@ def main():
         "cache_version": CACHE_VERSION,
         "schema_version": 3,
         "history_days": HISTORY_DAYS,
+        "settlement_lag_days": 2,
         "source_query_id": SOURCE_QUERY_ID,
         "mode": "fresh_sql_execution_query_view",
         "generated_at_utc": generated,
