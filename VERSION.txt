@@ -1,9 +1,10 @@
-HNT Burn Cache package version: 1.3.0
+HNT Burn Cache package version: 1.4.0
 Schema version: 3
-History window: 30 settled days
-Settlement lag: 2 days (latest published date is day before yesterday / T-2)
+Cache window: 31 days (30 settled/displayable days + yesterday)
+Cache newest date: yesterday / T-1
+Recommended HNT Monitor display cutoff: day before yesterday / T-2
 Dune source query: 3342070
 Dune mode: fresh SQL execution using query view
-Dune wrapper output limit: 32 newest daily rows (30 + today + yesterday)
+Dune wrapper output limit: 32 newest daily rows (today + yesterday + 30 settled days)
 Dune result-read hard row limit: 1000
 Default Dune engine: medium

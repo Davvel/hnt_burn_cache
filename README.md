@@ -1,14 +1,22 @@
-# HNT Daily Burn Public Cache — v1.3.0
+# HNT Daily Burn Public Cache — v1.4.0
 
-This repository publishes a public JSON feed containing **30 settled daily HNT burn values** for the HNT Monitor app.
+This repository publishes HNT daily burn data for the HNT Monitor app.
 
-## v1.3.0 settlement rule
+## v1.4.0 rule
 
-The cache deliberately does **not** publish today or yesterday. The newest eligible day is always the **day before yesterday (T-2)**.
+The cache now **stores yesterday (T-1)** but never stores today's partial value.
+The HNT Monitor app should continue to **display only through the day before yesterday (T-2)**.
 
-Example: if the workflow runs on **2 September 2026**, the newest cache day is **31 August 2026**. This gives the upstream Dune data an additional full day to settle before the value is treated as complete.
+Example: on **4 September 2026**:
 
-To keep a full 30-day public history after excluding today and yesterday, the Dune wrapper asks for 32 source rows:
+- Cache contains data through **3 September**.
+- `latest.json` points to **3 September**.
+- `latest-complete.json` points to **2 September**.
+- The mobile graph should hide 3 September and display through **2 September**.
+
+The cache keeps 31 rows: yesterday plus 30 older settled days. Therefore the app still has a full 30-day graph after hiding yesterday.
+
+## Dune wrapper
 
 ```sql
 SELECT *
@@ -17,21 +25,7 @@ ORDER BY 1 DESC
 LIMIT 32
 ```
 
-The Python script then keeps only the 30-day UTC window ending at T-2. It rejects both T and T-1 even if Dune returns them.
-
-## Architecture
-
-```text
-Dune public query 3342070
-        ↓ fresh execution, newest 32 rows
-GitHub Actions
-        ↓ discard today + yesterday
-30 settled daily values ending at T-2
-        ↓
-GitHub Pages JSON cache
-        ↓
-HNT Monitor app / all users
-```
+The 32 source rows cover today + yesterday + 30 older days. Python rejects today and publishes up to 31 rows ending at T-1.
 
 ## Workflow defaults
 
@@ -41,56 +35,36 @@ HISTORY_DAYS=30
 MAX_ROWS=1000
 DUNE_PERFORMANCE=medium
 MAX_WAIT_SECONDS=600
-CACHE_VERSION=1.3.0
+CACHE_VERSION=1.4.0
 ```
-
-The scheduled workflow may still run at 03:17 Malta time because the result no longer depends on yesterday being fully settled.
 
 ## Published files
 
-Versioned v1.3.0 endpoints:
-
-```text
-/hnt-burn-v1.3.0.json
-/latest-v1.3.0.json
-/latest-complete-v1.3.0.json
-/status-v1.3.0.json
-/version.json
-```
-
-Stable aliases remain:
+Stable aliases:
 
 ```text
 /hnt-burn.json
 /latest.json
 /latest-complete.json
 /status.json
+/version.json
 ```
 
-`latest.json` and `latest-complete.json` now normally identify the same T-2 record because the public dataset contains settled days only.
-
-The main/status JSON also exposes:
+Versioned endpoints:
 
 ```text
-expected_latest_date
-settlement_lag_days: 2
+/hnt-burn-v1.4.0.json
+/latest-v1.4.0.json
+/latest-complete-v1.4.0.json
+/status-v1.4.0.json
 ```
 
-This makes it explicit what date the proxy expected to publish.
+## Upgrade
 
-## Install / upgrade
+1. Copy the package contents over the existing repository.
+2. Keep the existing `.git` folder.
+3. Commit and push to GitHub.
+4. Run **Actions → Refresh HNT burn cache → Run workflow** once.
+5. On 4 Sep, for example, verify that `latest_available_date` is 3 Sep and `latest_complete_date` is 2 Sep.
 
-1. Unzip this package.
-2. Copy everything inside it over your existing local repository.
-3. Replace existing files when prompted, but **do not delete your existing `.git` folder**.
-4. The packaged `.github` folder should update your workflow.
-5. Commit in GitHub Desktop, for example: `HNT Burn Cache v1.3.0 - settle at T-2`.
-6. Push origin.
-7. In GitHub, open **Actions → Refresh HNT burn cache → Run workflow** once to test it.
-8. Check `status.json` and confirm `latest_available_date` is the day before yesterday.
-
-Your `DUNE_API_KEY` remains stored in GitHub Secrets and is not included in this ZIP.
-
-## Security / Dune cost
-
-The proxy still performs a fresh Dune SQL execution and uses the `medium` API engine. The result read remains capped at 1000 rows. Keep your Dune account query-cost/spend guardrails enabled; the API key must remain only in GitHub repository secrets.
+Your `DUNE_API_KEY` remains in GitHub Secrets and is not included in this package.

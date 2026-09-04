@@ -1,5 +1,13 @@
 # Changelog
 
+## v1.4.0
+- Cache now retains yesterday (T-1) instead of discarding it.
+- Today's partial value is still never published.
+- Cache holds up to 31 rows: 30 settled/displayable days plus yesterday.
+- `latest.json` identifies T-1; `latest-complete.json` identifies T-2.
+- Added metadata stating that the app should display only through T-2.
+- Updated offline tests and GitHub Actions version.
+
 ## v1.3.0 - 2026-09-02
 
 - Changed the settlement boundary from yesterday (T-1) to the day before yesterday (T-2).

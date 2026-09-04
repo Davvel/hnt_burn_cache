@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-HNT Daily Burn Public Cache v1.3.0
+HNT Daily Burn Public Cache v1.4.0
 
 Execute a fresh, deliberately small Dune SQL wrapper around public query 3342070,
 wait for it to finish, retrieve the result, and publish app-friendly JSON files.
@@ -36,7 +36,7 @@ OUT_DIR = Path(os.environ.get("OUT_DIR", "site"))
 HISTORY_DAYS = max(1, int(os.environ.get("HISTORY_DAYS", "30")))
 MAX_ROWS = max(1, int(os.environ.get("MAX_ROWS", "1000")))
 STALE_AFTER_DAYS = max(0, int(os.environ.get("STALE_AFTER_DAYS", "2")))
-CACHE_VERSION = os.environ.get("CACHE_VERSION", "1.3.0").strip() or "1.3.0"
+CACHE_VERSION = os.environ.get("CACHE_VERSION", "1.4.0").strip() or "1.4.0"
 DUNE_PERFORMANCE = os.environ.get("DUNE_PERFORMANCE", "medium").strip().lower()
 POLL_SECONDS = max(1, int(os.environ.get("POLL_SECONDS", "5")))
 MAX_WAIT_SECONDS = max(30, int(os.environ.get("MAX_WAIT_SECONDS", "600")))
@@ -137,11 +137,12 @@ def request_json(url: str, method="GET", payload=None, purpose="request", timeou
 
 
 def build_wrapper_sql(source_query_id: str, history_days: int) -> str:
-    """Return enough newest rows to publish N settled daily values.
+    """Return enough newest rows for 30 settled days plus yesterday.
 
-    Today and yesterday are deliberately excluded from the public cache.
-    Therefore request HISTORY_DAYS + 2 source rows, then locally keep the
-    30-day window ending on the day before yesterday (T-2).
+    The public cache now includes yesterday (T-1) so it is ready for the app
+    to use later. The mobile app should still display only through T-2.
+    To preserve 30 visible settled days after the app hides yesterday, request
+    HISTORY_DAYS + 2 rows: today + yesterday + 30 settled days.
     """
     qid = "".join(ch for ch in str(source_query_id) if ch.isdigit())
     if not qid or qid != str(source_query_id):
@@ -163,7 +164,7 @@ def execute_fresh_query():
     }
     print(
         f"Submitting fresh Dune execution: source query={SOURCE_QUERY_ID}, "
-        f"source rows={min(HISTORY_DAYS + 2, MAX_ROWS)} (publish through T-2), engine={DUNE_PERFORMANCE}."
+        f"source rows={min(HISTORY_DAYS + 2, MAX_ROWS)} (cache through T-1; app displays through T-2), engine={DUNE_PERFORMANCE}."
     )
     raw = request_json(
         "https://api.dune.com/api/v1/sql/execute",
@@ -313,8 +314,13 @@ def process_rows(rows, today_utc=None):
         )
 
     today_utc = today_utc or datetime.now(timezone.utc).date()
-    latest_publishable_day = today_utc - timedelta(days=2)
-    first_day = latest_publishable_day - timedelta(days=HISTORY_DAYS - 1)
+
+    # Cache policy v1.4.0:
+    # - Store yesterday (T-1) as the newest available value.
+    # - Keep 30 older settled days as well, so the mobile app can hide T-1
+    #   and still display a full 30-day graph ending at T-2.
+    latest_cache_day = today_utc - timedelta(days=1)
+    first_day = latest_cache_day - timedelta(days=HISTORY_DAYS)
 
     per_day = {}
     skipped = 0
@@ -325,23 +331,23 @@ def process_rows(rows, today_utc=None):
             skipped += 1
             continue
         parsed_date = date.fromisoformat(d)
-        # Strict safety check: never publish today or yesterday. The cache is
-        # the settled 30-day window ending on the day before yesterday (T-2).
-        if parsed_date < first_day or parsed_date > latest_publishable_day:
+        # Never cache today's partial value. Yesterday is intentionally retained.
+        if parsed_date < first_day or parsed_date > latest_cache_day:
             skipped += 1
             continue
         per_day[d] = per_day.get(d, 0.0) + v
 
     if not per_day:
         raise ValueError(
-            f"No usable rows fell inside the settled {HISTORY_DAYS}-day window "
-            f"from {first_day.isoformat()} through {latest_publishable_day.isoformat()}."
+            f"No usable rows fell inside the cache window "
+            f"from {first_day.isoformat()} through {latest_cache_day.isoformat()}."
         )
 
+    # Up to 31 rows: 30 settled/displayable days plus yesterday.
     daily = [
         {"date": d, "hnt_burned": round(per_day[d], 9)}
         for d in sorted(per_day.keys())
-    ][-HISTORY_DAYS:]
+    ][-(HISTORY_DAYS + 1):]
     return daily, date_col, value_col, skipped, first_day
 
 
@@ -368,8 +374,19 @@ def main():
     age_days = (today_utc - latest_date).days
     stale = age_days > STALE_AFTER_DAYS
 
-    expected_latest_date = (today_utc - timedelta(days=2)).isoformat()
-    latest_complete = latest
+    expected_latest_date = (today_utc - timedelta(days=1)).isoformat()
+    expected_latest_complete_date = (today_utc - timedelta(days=2)).isoformat()
+    latest_complete = next(
+        (row for row in reversed(daily) if row["date"] <= expected_latest_complete_date),
+        None,
+    )
+    if latest_complete is None:
+        fail(
+            "Cache contains no settled value through T-2.",
+            raw,
+            execution_id=execution_id,
+            execution_cost_credits=execution_cost,
+        )
     generated = now_iso()
 
     output = {
@@ -403,6 +420,9 @@ def main():
         "latest_available_date": latest["date"],
         "latest_complete_date": latest_complete["date"],
         "expected_latest_date": expected_latest_date,
+        "expected_latest_complete_date": expected_latest_complete_date,
+        "cache_includes_through_days_ago": 1,
+        "app_display_through_days_ago": 2,
         "settlement_lag_days": 2,
         "latest_age_days": age_days,
         "stale_after_days": STALE_AFTER_DAYS,
@@ -428,6 +448,9 @@ def main():
         "latest_available_date": latest["date"],
         "latest_complete_date": latest_complete["date"],
         "expected_latest_date": expected_latest_date,
+        "expected_latest_complete_date": expected_latest_complete_date,
+        "cache_includes_through_days_ago": 1,
+        "app_display_through_days_ago": 2,
         "settlement_lag_days": 2,
         "latest_age_days": age_days,
         "execution_id": execution_id,
@@ -455,6 +478,9 @@ def main():
         "cache_version": CACHE_VERSION,
         "schema_version": 3,
         "history_days": HISTORY_DAYS,
+        "cache_rows": HISTORY_DAYS + 1,
+        "cache_includes_through_days_ago": 1,
+        "app_display_through_days_ago": 2,
         "settlement_lag_days": 2,
         "source_query_id": SOURCE_QUERY_ID,
         "mode": "fresh_sql_execution_query_view",
