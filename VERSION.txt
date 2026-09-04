@@ -1,10 +1,8 @@
-HNT Burn Cache package version: 1.4.0
-Schema version: 3
-Cache window: 31 days (30 settled/displayable days + yesterday)
-Cache newest date: yesterday / T-1
-Recommended HNT Monitor display cutoff: day before yesterday / T-2
-Dune source query: 3342070
-Dune mode: fresh SQL execution using query view
-Dune wrapper output limit: 32 newest daily rows (today + yesterday + 30 settled days)
-Dune result-read hard row limit: 1000
-Default Dune engine: medium
+HNT Burn Cache v1.5.0
+
+Policy:
+- Every scheduled run executes a completely fresh Dune query.
+- No previous JSON cache is used to build the new data.
+- Cache includes today (partial), yesterday, and 30 days ending at T-2.
+- Mobile app must display only dates <= today - 2 days.
+- With HISTORY_DAYS=30 the cache can contain up to 32 daily rows.

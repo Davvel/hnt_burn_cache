@@ -1,8 +1,8 @@
-# HNT Daily Burn Public Cache — v1.4.0
+# HNT Daily Burn Public Cache — v1.5.0
 
 This repository publishes HNT daily burn data for the HNT Monitor app.
 
-## v1.4.0 rule
+## v1.5.0 rule
 
 The cache now **stores yesterday (T-1)** but never stores today's partial value.
 The HNT Monitor app should continue to **display only through the day before yesterday (T-2)**.
@@ -53,10 +53,10 @@ Stable aliases:
 Versioned endpoints:
 
 ```text
-/hnt-burn-v1.4.0.json
-/latest-v1.4.0.json
-/latest-complete-v1.4.0.json
-/status-v1.4.0.json
+/hnt-burn-v1.5.0.json
+/latest-v1.5.0.json
+/latest-complete-v1.5.0.json
+/status-v1.5.0.json
 ```
 
 ## Upgrade
@@ -68,3 +68,7 @@ Versioned endpoints:
 5. On 4 Sep, for example, verify that `latest_available_date` is 3 Sep and `latest_complete_date` is 2 Sep.
 
 Your `DUNE_API_KEY` remains in GitHub Secrets and is not included in this package.
+
+
+## v1.5.0 cache policy
+Every run is a full rebuild from Dune. The published cache includes today, even though today may be partial, plus yesterday and enough history for the app to show 30 complete days ending at T-2. The mobile app should filter the `data` array to `date <= today - 2 days` and take the newest 30 matching rows.

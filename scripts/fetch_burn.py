@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-HNT Daily Burn Public Cache v1.4.0
+HNT Daily Burn Public Cache v1.5.0
 
 Execute a fresh, deliberately small Dune SQL wrapper around public query 3342070,
 wait for it to finish, retrieve the result, and publish app-friendly JSON files.
@@ -36,7 +36,7 @@ OUT_DIR = Path(os.environ.get("OUT_DIR", "site"))
 HISTORY_DAYS = max(1, int(os.environ.get("HISTORY_DAYS", "30")))
 MAX_ROWS = max(1, int(os.environ.get("MAX_ROWS", "1000")))
 STALE_AFTER_DAYS = max(0, int(os.environ.get("STALE_AFTER_DAYS", "2")))
-CACHE_VERSION = os.environ.get("CACHE_VERSION", "1.4.0").strip() or "1.4.0"
+CACHE_VERSION = os.environ.get("CACHE_VERSION", "1.5.0").strip() or "1.5.0"
 DUNE_PERFORMANCE = os.environ.get("DUNE_PERFORMANCE", "medium").strip().lower()
 POLL_SECONDS = max(1, int(os.environ.get("POLL_SECONDS", "5")))
 MAX_WAIT_SECONDS = max(30, int(os.environ.get("MAX_WAIT_SECONDS", "600")))
@@ -72,6 +72,33 @@ def now_iso():
 def write_json(filename: str, value):
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     (OUT_DIR / filename).write_text(json.dumps(value, indent=2), encoding="utf-8")
+
+
+
+
+def clear_generated_cache():
+    """Remove previously generated JSON files before a full rebuild.
+
+    This only clears generated cache artifacts in OUT_DIR. Static files such as
+    index.html and .nojekyll are preserved. If the Dune run fails, the GitHub
+    Actions job fails before deployment, so the currently published Pages site
+    remains untouched.
+    """
+    OUT_DIR.mkdir(parents=True, exist_ok=True)
+    patterns = [
+        "hnt-burn*.json",
+        "latest*.json",
+        "status*.json",
+        "version.json",
+        "last-error-response.json",
+    ]
+    removed = 0
+    for pattern in patterns:
+        for path in OUT_DIR.glob(pattern):
+            if path.is_file():
+                path.unlink()
+                removed += 1
+    print(f"Cleared {removed} previously generated cache file(s) before rebuild.")
 
 
 def fail(message: str, raw=None, execution_id=None, execution_cost_credits=None):
@@ -137,12 +164,11 @@ def request_json(url: str, method="GET", payload=None, purpose="request", timeou
 
 
 def build_wrapper_sql(source_query_id: str, history_days: int) -> str:
-    """Return enough newest rows for 30 settled days plus yesterday.
+    """Return a completely fresh rolling window through today.
 
-    The public cache now includes yesterday (T-1) so it is ready for the app
-    to use later. The mobile app should still display only through T-2.
-    To preserve 30 visible settled days after the app hides yesterday, request
-    HISTORY_DAYS + 2 rows: today + yesterday + 30 settled days.
+    The cache intentionally includes today (T), yesterday (T-1), and the
+    30-day app display window ending at T-2.  This means HISTORY_DAYS + 2
+    daily rows are requested on every run. No previous cache data is reused.
     """
     qid = "".join(ch for ch in str(source_query_id) if ch.isdigit())
     if not qid or qid != str(source_query_id):
@@ -164,7 +190,7 @@ def execute_fresh_query():
     }
     print(
         f"Submitting fresh Dune execution: source query={SOURCE_QUERY_ID}, "
-        f"source rows={min(HISTORY_DAYS + 2, MAX_ROWS)} (cache through T-1; app displays through T-2), engine={DUNE_PERFORMANCE}."
+        f"source rows={min(HISTORY_DAYS + 2, MAX_ROWS)} (fresh rebuild through today; app displays through T-2), engine={DUNE_PERFORMANCE}."
     )
     raw = request_json(
         "https://api.dune.com/api/v1/sql/execute",
@@ -315,12 +341,14 @@ def process_rows(rows, today_utc=None):
 
     today_utc = today_utc or datetime.now(timezone.utc).date()
 
-    # Cache policy v1.4.0:
-    # - Store yesterday (T-1) as the newest available value.
-    # - Keep 30 older settled days as well, so the mobile app can hide T-1
-    #   and still display a full 30-day graph ending at T-2.
-    latest_cache_day = today_utc - timedelta(days=1)
-    first_day = latest_cache_day - timedelta(days=HISTORY_DAYS)
+    # Cache policy v1.5.0:
+    # - Rebuild the complete rolling cache from fresh Dune data on every run.
+    # - Include TODAY (T), even though today's value is intentionally partial.
+    # - Include yesterday (T-1).
+    # - Include 30 displayable days ending at T-2.
+    #   For HISTORY_DAYS=30 this is T-31 ... T-2, plus T-1 and T = 32 rows.
+    latest_cache_day = today_utc
+    first_day = today_utc - timedelta(days=HISTORY_DAYS + 1)
 
     per_day = {}
     skipped = 0
@@ -331,7 +359,7 @@ def process_rows(rows, today_utc=None):
             skipped += 1
             continue
         parsed_date = date.fromisoformat(d)
-        # Never cache today's partial value. Yesterday is intentionally retained.
+        # Today is intentionally retained even though it may be a partial day.
         if parsed_date < first_day or parsed_date > latest_cache_day:
             skipped += 1
             continue
@@ -343,15 +371,17 @@ def process_rows(rows, today_utc=None):
             f"from {first_day.isoformat()} through {latest_cache_day.isoformat()}."
         )
 
-    # Up to 31 rows: 30 settled/displayable days plus yesterday.
+    # Up to 32 rows: 30 displayable days through T-2, plus T-1 and T.
     daily = [
         {"date": d, "hnt_burned": round(per_day[d], 9)}
         for d in sorted(per_day.keys())
-    ][-(HISTORY_DAYS + 1):]
+    ][-(HISTORY_DAYS + 2):]
     return daily, date_col, value_col, skipped, first_day
 
 
 def main():
+    # Full rebuild policy: never merge with or trust yesterday's generated JSON.
+    clear_generated_cache()
     execution_id, sql, submit_raw = execute_fresh_query()
     status_raw = poll_execution(execution_id)
     execution_cost = status_raw.get("execution_cost_credits")
@@ -374,7 +404,7 @@ def main():
     age_days = (today_utc - latest_date).days
     stale = age_days > STALE_AFTER_DAYS
 
-    expected_latest_date = (today_utc - timedelta(days=1)).isoformat()
+    expected_latest_date = today_utc.isoformat()
     expected_latest_complete_date = (today_utc - timedelta(days=2)).isoformat()
     latest_complete = next(
         (row for row in reversed(daily) if row["date"] <= expected_latest_complete_date),
@@ -401,10 +431,11 @@ def main():
         "max_rows_per_result_read": MAX_ROWS,
         "source": {
             "provider": "Dune",
-            "mode": "fresh_sql_execution_query_view",
+            "mode": "full_fresh_rebuild_through_today",
             "source_query_id": SOURCE_QUERY_ID,
             "wrapper_rows_requested": min(HISTORY_DAYS + 2, MAX_ROWS),
             "wrapper_ordering": "ORDER BY first source column DESC",
+            "rebuild_policy": "discard previous generated cache and rebuild from fresh Dune execution",
             "dune_performance": DUNE_PERFORMANCE,
             "execution_id": execution_id,
             "execution_state": status_raw.get("state"),
@@ -421,9 +452,9 @@ def main():
         "latest_complete_date": latest_complete["date"],
         "expected_latest_date": expected_latest_date,
         "expected_latest_complete_date": expected_latest_complete_date,
-        "cache_includes_through_days_ago": 1,
+        "cache_includes_through_days_ago": 0,
         "app_display_through_days_ago": 2,
-        "settlement_lag_days": 2,
+        "settlement_lag_days": 0,
         "latest_age_days": age_days,
         "stale_after_days": STALE_AFTER_DAYS,
         "row_count": len(daily),
@@ -449,9 +480,9 @@ def main():
         "latest_complete_date": latest_complete["date"],
         "expected_latest_date": expected_latest_date,
         "expected_latest_complete_date": expected_latest_complete_date,
-        "cache_includes_through_days_ago": 1,
+        "cache_includes_through_days_ago": 0,
         "app_display_through_days_ago": 2,
-        "settlement_lag_days": 2,
+        "settlement_lag_days": 0,
         "latest_age_days": age_days,
         "execution_id": execution_id,
         "execution_cost_credits": execution_cost,
@@ -478,12 +509,12 @@ def main():
         "cache_version": CACHE_VERSION,
         "schema_version": 3,
         "history_days": HISTORY_DAYS,
-        "cache_rows": HISTORY_DAYS + 1,
-        "cache_includes_through_days_ago": 1,
+        "cache_rows": HISTORY_DAYS + 2,
+        "cache_includes_through_days_ago": 0,
         "app_display_through_days_ago": 2,
-        "settlement_lag_days": 2,
+        "settlement_lag_days": 0,
         "source_query_id": SOURCE_QUERY_ID,
-        "mode": "fresh_sql_execution_query_view",
+        "mode": "full_fresh_rebuild_through_today",
         "generated_at_utc": generated,
     }
 

@@ -1,3 +1,11 @@
+# v1.5.0
+- Rebuilds the cache completely from a fresh Dune execution every run.
+- Includes TODAY (T) in the cache, even if partial.
+- Includes yesterday (T-1).
+- Keeps 30 additional days through T-2 for the mobile display window.
+- No previous cached values are merged or reused.
+- App remains responsible for hiding today and yesterday.
+
 # Changelog
 
 ## v1.4.0
