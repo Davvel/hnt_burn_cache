@@ -1,3 +1,9 @@
+## v1.5.1 — 23 October 2026
+
+- Omit the optional Dune performance override by default.
+- Explain account/team API access checks if Dune still returns Invalid performance tier.
+- Preserve fresh SQL execution, row limits, and the T-2 app display policy.
+
 # v1.5.0
 - Rebuilds the cache completely from a fresh Dune execution every run.
 - Includes TODAY (T) in the cache, even if partial.

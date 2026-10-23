@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Offline smoke tests for v1.5.0 helpers. No Dune credits are used."""
+"""Offline smoke tests for v1.5.1 helpers. No Dune credits are used."""
 import importlib.util
 import os
 from datetime import date, timedelta
@@ -7,7 +7,7 @@ from pathlib import Path
 
 os.environ.setdefault("MAX_ROWS", "1000")
 os.environ.setdefault("HISTORY_DAYS", "30")
-os.environ.setdefault("CACHE_VERSION", "1.5.0")
+os.environ.setdefault("CACHE_VERSION", "1.5.1")
 os.environ.setdefault("DUNE_SOURCE_QUERY_ID", "3342070")
 os.environ.setdefault("DUNE_PERFORMANCE", "medium")
 
@@ -51,4 +51,4 @@ display_rows = [r for r in daily if r["date"] <= display_cutoff]
 assert len(display_rows) == 30, len(display_rows)
 assert display_rows[-1]["date"] == "2026-09-02", display_rows[-1]
 
-print("v1.5.0 offline smoke tests passed: cache through TODAY; 30 display rows through T-2.")
+print("v1.5.1 offline smoke tests passed: cache through TODAY; 30 display rows through T-2.")

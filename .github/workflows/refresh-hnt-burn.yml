@@ -39,9 +39,9 @@ jobs:
           HISTORY_DAYS: "30"
           MAX_ROWS: "1000"
           STALE_AFTER_DAYS: "2"
-          CACHE_VERSION: "1.5.0"
-          # Dune API programmatic executions use Medium (Small is manual-only on this account/plan).
-          DUNE_PERFORMANCE: "medium"
+          CACHE_VERSION: "1.5.1"
+          # Let Dune select its default tier; do not force a rejected engine.
+          DUNE_PERFORMANCE: "auto"
           POLL_SECONDS: "5"
           MAX_WAIT_SECONDS: "600"
         run: python scripts/fetch_burn.py

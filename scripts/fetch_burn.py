@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-HNT Daily Burn Public Cache v1.5.0
+HNT Daily Burn Public Cache v1.5.1
 
 Execute a fresh, deliberately small Dune SQL wrapper around public query 3342070,
 wait for it to finish, retrieve the result, and publish app-friendly JSON files.
@@ -36,13 +36,13 @@ OUT_DIR = Path(os.environ.get("OUT_DIR", "site"))
 HISTORY_DAYS = max(1, int(os.environ.get("HISTORY_DAYS", "30")))
 MAX_ROWS = max(1, int(os.environ.get("MAX_ROWS", "1000")))
 STALE_AFTER_DAYS = max(0, int(os.environ.get("STALE_AFTER_DAYS", "2")))
-CACHE_VERSION = os.environ.get("CACHE_VERSION", "1.5.0").strip() or "1.5.0"
-DUNE_PERFORMANCE = os.environ.get("DUNE_PERFORMANCE", "medium").strip().lower()
+CACHE_VERSION = os.environ.get("CACHE_VERSION", "1.5.1").strip() or "1.5.1"
+DUNE_PERFORMANCE = os.environ.get("DUNE_PERFORMANCE", "auto").strip().lower()
 POLL_SECONDS = max(1, int(os.environ.get("POLL_SECONDS", "5")))
 MAX_WAIT_SECONDS = max(30, int(os.environ.get("MAX_WAIT_SECONDS", "600")))
 
-if DUNE_PERFORMANCE not in {"small", "medium", "large"}:
-    DUNE_PERFORMANCE = "medium"
+if DUNE_PERFORMANCE not in {"auto", "small", "medium", "large"}:
+    raise ValueError("DUNE_PERFORMANCE must be auto, small, medium, or large")
 
 DATE_CANDIDATES = [
     "date", "day", "block_date", "burn_date", "dt",
@@ -156,6 +156,17 @@ def request_json(url: str, method="GET", payload=None, purpose="request", timeou
             except json.JSONDecodeError:
                 parsed = {"response_text": body[:4000]}
         detail = f" Dune response: {json.dumps(parsed, ensure_ascii=False)[:2500]}" if parsed else ""
+        if exc.code == 400 and isinstance(parsed, dict) and str(parsed.get("error", "")).strip().lower() == "invalid performance tier":
+            detail += (
+                " The request used Dune's default tier."
+                if DUNE_PERFORMANCE == "auto"
+                else f" The request explicitly selected {DUNE_PERFORMANCE}. Try DUNE_PERFORMANCE=auto."
+            )
+            detail += (
+                " Check API execution access and engine availability for the account/team"
+                " that owns DUNE_API_KEY; contact Dune support if the default tier is rejected."
+                " No larger engine or cached result was substituted."
+            )
         fail(f"Dune {purpose} failed: HTTP {exc.code} {exc.reason}.{detail}", parsed)
     except urllib.error.URLError as exc:
         fail(f"Dune {purpose} failed: network error: {exc.reason}")
@@ -186,8 +197,10 @@ def execute_fresh_query():
     sql = build_wrapper_sql(SOURCE_QUERY_ID, HISTORY_DAYS)
     payload = {
         "sql": sql,
-        "performance": DUNE_PERFORMANCE,
     }
+    # Omit the optional tier entirely in auto mode, rather than sending "auto".
+    if DUNE_PERFORMANCE != "auto":
+        payload["performance"] = DUNE_PERFORMANCE
     print(
         f"Submitting fresh Dune execution: source query={SOURCE_QUERY_ID}, "
         f"source rows={min(HISTORY_DAYS + 2, MAX_ROWS)} (fresh rebuild through today; app displays through T-2), engine={DUNE_PERFORMANCE}."
@@ -341,7 +354,7 @@ def process_rows(rows, today_utc=None):
 
     today_utc = today_utc or datetime.now(timezone.utc).date()
 
-    # Cache policy v1.5.0:
+    # Cache policy v1.5.1:
     # - Rebuild the complete rolling cache from fresh Dune data on every run.
     # - Include TODAY (T), even though today's value is intentionally partial.
     # - Include yesterday (T-1).

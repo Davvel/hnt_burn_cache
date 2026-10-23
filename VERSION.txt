@@ -1,4 +1,4 @@
-HNT Burn Cache v1.5.0
+HNT Burn Cache v1.5.1
 
 Policy:
 - Every scheduled run executes a completely fresh Dune query.
